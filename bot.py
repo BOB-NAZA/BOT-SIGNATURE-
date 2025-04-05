@@ -190,7 +190,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 
 def main() -> None:
     """Lance le bot avec polling pour smartphone"""
-    TOKEN = "7914068930:AAGNSUaLf61EFbG0eanzjtUHRhl1tTCU77s"
+    TOKEN = "BOT-TO"
     
     # Crée l'application
     application = Application.builder().token(TOKEN).build()
