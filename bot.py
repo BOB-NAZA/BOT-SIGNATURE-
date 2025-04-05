@@ -1,12 +1,12 @@
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    Updater,
+    Application,
     CommandHandler,
     CallbackQueryHandler,
     MessageHandler,
-    Filters,
-    CallbackContext,
+    ContextTypes,
+    filters
 )
 import pickle
 import os
@@ -15,7 +15,7 @@ from threading import Thread
 
 # Configuration initiale
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', 
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
@@ -43,7 +43,8 @@ class ChannelStorage:
             try:
                 with open(STORAGE_FILE, 'rb') as f:
                     self.channels = pickle.load(f)
-            except:
+            except Exception as e:
+                logger.error(f"Erreur chargement données: {e}")
                 self.channels = {}
     
     def save_data(self):
@@ -67,7 +68,7 @@ class ChannelStorage:
 storage = ChannelStorage()
 
 # Commandes du bot
-def start(update: Update, context: CallbackContext) -> None:
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
         [
             InlineKeyboardButton("➕ Ajouter une chaîne", callback_data='add_channel'),
@@ -78,32 +79,32 @@ def start(update: Update, context: CallbackContext) -> None:
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text('Menu principal:', reply_markup=reply_markup)
+    await update.message.reply_text('Menu principal:', reply_markup=reply_markup)
 
-def button_handler(update: Update, context: CallbackContext) -> None:
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    query.answer()
+    await query.answer()
 
     if query.data == 'add_channel':
-        query.edit_message_text(
+        await query.edit_message_text(
             text="Envoyez le @nom ou l'ID numérique de la chaîne\n"
             "(Le bot doit être admin de la chaîne)"
         )
         context.user_data['awaiting_channel'] = True
     elif query.data == 'remove_channel':
-        show_channels_to_remove(query, context)
+        await show_channels_to_remove(query, context)
     elif query.data == 'list_channels':
-        show_channels_list(query, context)
+        await show_channels_list(query, context)
     elif query.data.startswith('remove_'):
         channel_id = query.data[7:]
         if storage.remove_channel(channel_id):
-            query.edit_message_text(f"✅ Chaîne supprimée")
+            await query.edit_message_text(f"✅ Chaîne supprimée")
         else:
-            query.edit_message_text("❌ Chaîne introuvable")
+            await query.edit_message_text("❌ Chaîne introuvable")
     elif query.data == 'back_to_menu':
-        start_from_button(query, context)
+        await start_from_button(query, context)
 
-def start_from_button(query, context):
+async def start_from_button(query, context):
     keyboard = [
         [
             InlineKeyboardButton("➕ Ajouter une chaîne", callback_data='add_channel'),
@@ -114,29 +115,29 @@ def start_from_button(query, context):
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    query.edit_message_text('Menu principal:', reply_markup=reply_markup)
+    await query.edit_message_text('Menu principal:', reply_markup=reply_markup)
 
-def show_channels_to_remove(query, context):
+async def show_channels_to_remove(query, context):
     channels = storage.get_channels()
     if not channels:
-        query.edit_message_text("Aucune chaîne configurée")
+        await query.edit_message_text("Aucune chaîne configurée")
         return
     
     keyboard = []
     for channel_id, channel_name in channels.items():
         keyboard.append([InlineKeyboardButton(
-            f"🗑 {channel_name}", 
+            f"🗑 {channel_name}",
             callback_data=f'remove_{channel_id}'
         )])
     
     keyboard.append([InlineKeyboardButton("🔙 Retour", callback_data='back_to_menu')])
     reply_markup = InlineKeyboardMarkup(keyboard)
-    query.edit_message_text("Sélectionnez une chaîne à supprimer:", reply_markup=reply_markup)
+    await query.edit_message_text("Sélectionnez une chaîne à supprimer:", reply_markup=reply_markup)
 
-def show_channels_list(query, context):
+async def show_channels_list(query, context):
     channels = storage.get_channels()
     if not channels:
-        query.edit_message_text("Aucune chaîne configurée")
+        await query.edit_message_text("Aucune chaîne configurée")
         return
     
     message = "📋 Chaînes configurées:\n\n"
@@ -145,30 +146,30 @@ def show_channels_list(query, context):
     
     keyboard = [[InlineKeyboardButton("🔙 Retour", callback_data='back_to_menu')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    query.edit_message_text(message, reply_markup=reply_markup)
+    await query.edit_message_text(message, reply_markup=reply_markup)
 
-def handle_message(update: Update, context: CallbackContext) -> None:
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if 'awaiting_channel' in context.user_data:
         channel_input = update.message.text.strip()
         
         if channel_input.startswith('@'):
             channel_name = channel_input
-            channel_id = channel_name[1:]  # Simplification
+            channel_id = channel_name[1:]
             storage.add_channel(channel_id, channel_name)
-            update.message.reply_text(f"✅ {channel_name} ajoutée!")
+            await update.message.reply_text(f"✅ {channel_name} ajoutée!")
         elif channel_input.isdigit():
             channel_id = channel_input
             channel_name = f"Chaîne {channel_id}"
             storage.add_channel(channel_id, channel_name)
-            update.message.reply_text(f"✅ ID {channel_id} ajouté!")
+            await update.message.reply_text(f"✅ ID {channel_id} ajouté!")
         else:
-            update.message.reply_text("❌ Format invalide. Utilisez @nom ou ID numérique")
+            await update.message.reply_text("❌ Format invalide. Utilisez @nom ou ID numérique")
         
         del context.user_data['awaiting_channel']
     else:
-        update.message.reply_text("Utilisez /start pour le menu")
+        await update.message.reply_text("Utilisez /start pour le menu")
 
-def edit_messages(update: Update, context: CallbackContext) -> None:
+async def edit_messages(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.channel_post:
         message = update.channel_post
         channel_id = str(message.chat.id)
@@ -180,41 +181,35 @@ def edit_messages(update: Update, context: CallbackContext) -> None:
             
             if message.text and not message.text.endswith(signature):
                 try:
-                    context.bot.edit_message_text(
-                        chat_id=message.chat.id,
-                        message_id=message.message_id,
-                        text=message.text + signature
-                    )
+                    await message.edit_text(message.text + signature)
                 except Exception as e:
                     logger.error(f"Erreur édition: {e}")
 
-def error_handler(update: Update, context: CallbackContext) -> None:
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.error(msg="Erreur:", exc_info=context.error)
 
 def main() -> None:
     """Lance le bot avec polling pour smartphone"""
-    # Remplacez par votre token
     TOKEN = "7914068930:AAGNSUaLf61EFbG0eanzjtUHRhl1tTCU77s"
     
-    # Mode polling adapté pour smartphone
-    updater = Updater(TOKEN)
-    dispatcher = updater.dispatcher
+    # Crée l'application
+    application = Application.builder().token(TOKEN).build()
 
     # Handlers
-    dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(CallbackQueryHandler(button_handler))
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
-    dispatcher.add_handler(MessageHandler(Filters.update.channel_post, edit_messages))
-    dispatcher.add_error_handler(error_handler)
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(button_handler))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    application.add_handler(MessageHandler(filters.UpdateType.CHANNEL_POSTS, edit_messages))
+    application.add_error_handler(error_handler)
 
     # Lance Flask dans un thread séparé
     flask_thread = Thread(target=run_flask)
+    flask_thread.daemon = True
     flask_thread.start()
 
     # Démarre le bot
-    updater.start_polling()
-    logger.info("Bot démarré en mode polling")
-    updater.idle()
+    logger.info("Démarrage du bot en mode polling...")
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
     main()
