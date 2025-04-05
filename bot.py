@@ -194,7 +194,7 @@ def error_handler(update: Update, context: CallbackContext) -> None:
 def main() -> None:
     """Lance le bot avec polling pour smartphone"""
     # Remplacez par votre token
-    TOKEN = "VOTRE_TOKEN_BOT"
+    TOKEN = "7914068930:AAGNSUaLf61EFbG0eanzjtUHRhl1tTCU77s"
     
     # Mode polling adapté pour smartphone
     updater = Updater(TOKEN)
